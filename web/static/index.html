@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Upscale</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%23c2410c'/><path d='M4 12V4h2v6h6v2z' fill='white'/></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo">↗</span> Upscale <small>Real-ESRGAN · GFPGAN</small></div>
+  <input id="search" class="search" type="search" placeholder="Search name, date, camera, 4000×3000, UltraSharp, faces on…"
+         aria-label="Search all files" autocomplete="off">
+  <div id="device" class="device">connecting…</div>
+</header>
+
+<div class="layout">
+<aside class="sidebar">
+  <nav aria-label="Pages">
+    <a href="#/" class="nav-link" data-route="home">Upload &amp; queue</a>
+    <h2 class="nav-heading">Processed</h2>
+    <ul id="day-links" class="day-links"></ul>
+    <p id="day-links-empty" class="muted nav-empty">Finished files show up here by date.</p>
+    <a href="#/settings" class="nav-link" data-route="settings">Settings</a>
+  </nav>
+</aside>
+
+<main>
+ <div id="view-home" class="view">
+  <section class="panel">
+    <label id="dropzone" class="dropzone" tabindex="0">
+      <input id="file-input" type="file" multiple hidden>
+      <strong>Drop photos here</strong>
+      <span>or click to choose files · paste with Ctrl+V</span>
+      <span id="accepted" class="muted"></span>
+    </label>
+
+    <div class="settings">
+      <div class="hint"><strong>Global settings</strong> <span class="muted">— used by every file you start,
+        unless you gave it its own with <em>Settings</em> on the file. Nothing runs until you press Start; files run one at a time.
+        Once a file starts its settings are locked: Stop it to change them and start over.</span></div>
+      <div class="field">
+        <span class="field-label">Scale</span>
+        <div class="segmented" id="scale-buttons">
+          <button type="button" data-scale="2">2×</button>
+          <button type="button" data-scale="3">3×</button>
+          <button type="button" data-scale="4">4×</button>
+          <button type="button" data-scale="6">6×</button>
+        </div>
+        <input id="scale" type="number" step="0.5" aria-label="Custom scale">
+      </div>
+      <label class="field fit-field">
+        <span class="field-label">Fit to</span>
+        <select id="target">
+          <option value="scale">Scale factor</option>
+          <option value="4k">4K TV · 3840 px</option>
+          <option value="8k">8K · 7680 px</option>
+          <option value="long_edge">Long edge…</option>
+          <option value="print">Print, long edge…</option>
+        </select>
+        <input id="target-value" type="number" aria-label="Long edge" hidden>
+        <span id="target-unit" class="muted" hidden></span>
+      </label>
+      <label class="field toggle">
+        <input id="face" type="checkbox">
+        <span>Face restore <em class="muted">(GFPGAN)</em></span>
+      </label>
+      <label class="field" id="fidelity-field" title="0% is full GFPGAN restoration; raise it if faces look changed">
+        <span class="field-label">Face fidelity</span>
+        <input id="fidelity" type="range" step="0.05">
+        <output id="fidelity-value"></output>
+      </label>
+      <label class="field" id="face-pass-field" title="After upscaling finds faces too small in the original; before upscaling is the classic GFPGAN order">
+        <span class="field-label">Restore faces</span>
+        <select id="face-pass">
+          <option value="before">before upscaling</option>
+          <option value="after">after upscaling (finds small faces)</option>
+        </select>
+      </label>
+      <label class="field">
+        <span class="field-label">Format</span>
+        <select id="format"></select>
+      </label>
+      <label class="field" id="quality-field">
+        <span class="field-label">Quality</span>
+        <input id="quality" type="range" step="1">
+        <output id="quality-value"></output>
+      </label>
+      <label class="field">
+        <span class="field-label">Model</span>
+        <select id="model"></select>
+      </label>
+      <label class="field" id="denoise-field">
+        <span class="field-label">Denoise</span>
+        <input id="denoise" type="range" step="0.05">
+        <output id="denoise-value"></output>
+      </label>
+      <div id="model-hint" class="muted hint"></div>
+      <div id="target-hint" class="muted hint"></div>
+      <div class="hint">
+        <button type="button" class="button subtle" id="defaults-save"
+                title="New browsers start with these settings; others after Reset to defaults">Make these the defaults for everyone</button>
+        <button type="button" class="button subtle" id="defaults-reset"
+                title="Drop this browser's own choice and use the shared defaults">Reset to defaults</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="list-head">
+      <nav class="filters" id="filters">
+        <button type="button" data-filter="all" class="active">All <b data-count="all">0</b></button>
+        <button type="button" data-filter="ready">Ready <b data-count="ready">0</b></button>
+        <button type="button" data-filter="active">In progress <b data-count="active">0</b></button>
+        <button type="button" data-filter="stopped">Stopped <b data-count="stopped">0</b></button>
+        <button type="button" data-filter="done">Done <b data-count="done">0</b></button>
+        <button type="button" data-filter="error">Failed <b data-count="error">0</b></button>
+      </nav>
+      <div class="list-actions">
+        <button type="button" id="start-all" class="button" title="Start every Ready file with the settings above">Start all</button>
+        <a id="download-all" class="button" href="files/all.zip">Download all (.zip)</a>
+        <button type="button" id="start-new" class="button subtle" title="Clear finished files off this list. They stay under Processed in the sidebar.">Start new</button>
+      </div>
+    </div>
+    <ul id="jobs" class="jobs"></ul>
+    <p id="empty" class="empty muted">Nothing here yet. Added files wait for Start; finished ones also stay under Processed.</p>
+  </section>
+ </div>
+
+ <section id="view-day" class="view panel" hidden>
+  <div class="list-head">
+    <h1 id="day-title" class="page-title"></h1>
+    <span id="day-count" class="muted"></span>
+    <a id="download-day" class="button" href="#">Download day (.zip)</a>
+  </div>
+  <ul id="day-grid" class="gallery"></ul>
+  <p id="day-empty" class="empty muted" hidden>No finished files on this day.</p>
+ </section>
+
+ <section id="view-search" class="view panel" hidden>
+  <div class="list-head">
+    <h1 id="search-title" class="page-title"></h1>
+    <span id="search-count" class="muted"></span>
+    <a id="download-search" class="button" href="#">Download results (.zip)</a>
+  </div>
+  <ul id="search-grid" class="gallery"></ul>
+  <p id="search-empty" class="empty muted" hidden>Nothing matches. Try part of a name, a date like 2026-09-24 or Sep 24, a size like 4000x3000, 4×, a model, a camera name, "faces on" or a status.</p>
+ </section>
+
+ <section id="view-settings" class="view panel" hidden>
+  <h1 class="page-title">Settings</h1>
+  <label class="field slider-field">
+    <span class="field-label">Thumbnail size</span>
+    <input id="thumb-size" type="range">
+    <output id="thumb-size-value"></output>
+  </label>
+  <p class="muted hint">Preview on this screen, updated as you drag. Save applies it to every date page, on every device.</p>
+  <ul id="thumb-preview" class="gallery"></ul>
+  <div class="dialog-actions">
+    <button type="button" class="button subtle" id="thumb-reset">Reset</button>
+    <button type="button" class="button" id="thumb-save">Save</button>
+  </div>
+  <h2 class="nav-heading system-heading">System</h2>
+  <dl id="system" class="system"></dl>
+  <h2 class="nav-heading system-heading">Models</h2>
+  <p class="muted hint">To add a model, copy its .pth or .safetensors file into data/models and restart the app. Photo
+   models that upscale 2× or 4× join the Model picker; any other file is listed below with the reason. When a model
+   comes in both formats, take the .safetensors: it holds nothing but weights.</p>
+  <dl id="custom-models" class="system"></dl>
+  <p class="muted hint">Where to find models:</p>
+  <ul class="model-sources">
+   <li><a href="https://openmodeldb.info/?t=photo" target="_blank" rel="noopener noreferrer">OpenModelDB</a>: the
+    community catalogue, here filtered to photos, with before and after images</li>
+   <li><a href="https://github.com/Phhofm/models/releases" target="_blank" rel="noopener noreferrer">Philip Hofmann's
+    models</a>: photo models, including the built-in Nomos8kSC</li>
+   <li><a href="https://huggingface.co/Kim2091" target="_blank" rel="noopener noreferrer">Kim2091 on Hugging
+    Face</a>: the built-in UltraSharp and its successor, UltraSharp V2</li>
+   <li><a href="https://github.com/xinntao/Real-ESRGAN/releases" target="_blank" rel="noopener noreferrer">Real-ESRGAN
+    releases</a>: RealESRGAN_x2plus.pth, a 2× model by the makers of the built-in x4plus</li>
+   <li><a href="https://github.com/chaiNNer-org/spandrel#model-architecture-support" target="_blank"
+    rel="noopener noreferrer">spandrel's architecture list</a>: the kinds of model the app can run</li>
+  </ul>
+ </section>
+</main>
+</div>
+
+<dialog id="compare">
+  <div class="compare-head">
+    <span id="compare-title"></span>
+    <div>
+      <label class="muted" id="compare-with-field">Compare with <select id="compare-with"></select></label>
+      <label class="muted" title="Loads the full-size files instead of the light previews"><input id="compare-zoom" type="checkbox"> 1:1 pixels</label>
+      <button type="button" class="button subtle" id="compare-close">Close</button>
+    </div>
+  </div>
+  <div class="compare-stage" id="compare-stage">
+    <div class="compare-frame" id="compare-frame">
+      <img id="compare-after" alt="Upscaled">
+      <div class="compare-before" id="compare-before-wrap"><img id="compare-before" alt="Original"></div>
+      <div class="compare-line" id="compare-line"></div>
+      <span class="tag left" id="compare-tag-left">Original</span><span class="tag right" id="compare-tag-right">Upscaled</span>
+    </div>
+  </div>
+  <input id="compare-slider" type="range" min="0" max="100" value="50" aria-label="Before / after split">
+</dialog>
+
+<dialog id="strip" aria-labelledby="strip-title">
+  <div class="compare-head">
+    <strong id="strip-title"></strong>
+    <div>
+      <button type="button" class="button subtle" id="strip-close">Close</button>
+      <button type="button" class="button" id="strip-run">Run strip</button>
+    </div>
+  </div>
+  <p id="strip-note" class="muted hint"></p>
+  <div class="strip-pick">
+    <img id="strip-image" alt="The photo: click the spot to test">
+    <div id="strip-area"></div>
+  </div>
+  <p id="strip-status" class="muted hint" role="status"></p>
+  <ul id="strip-grid" class="strip-grid"></ul>
+</dialog>
+
+<dialog id="rotate">
+  <div class="compare-head">
+    <span id="rotate-title"></span>
+    <div>
+      <button type="button" class="button subtle" id="rotate-left" title="Rotate left">⟲ Left</button>
+      <button type="button" class="button subtle" id="rotate-right" title="Rotate right">⟳ Right</button>
+    </div>
+  </div>
+  <div class="rotate-stage"><img id="rotate-image" alt="Photo to rotate"></div>
+  <p id="rotate-note" class="muted hint"></p>
+  <div class="dialog-actions">
+    <button type="button" class="button subtle" id="rotate-cancel">Cancel</button>
+    <button type="button" class="button" id="rotate-save">Save</button>
+  </div>
+</dialog>
+
+<dialog id="file-settings" aria-labelledby="file-settings-title">
+  <div class="compare-head"><strong id="file-settings-title"></strong></div>
+  <p id="file-settings-note" class="muted hint"></p>
+  <div class="settings">
+    <label class="field">
+      <span class="field-label">Scale</span>
+      <input id="file-scale" type="number" step="0.5">
+    </label>
+    <label class="field fit-field">
+      <span class="field-label">Fit to</span>
+      <select id="file-target">
+        <option value="scale">Scale factor</option>
+        <option value="4k">4K TV · 3840 px</option>
+        <option value="8k">8K · 7680 px</option>
+        <option value="long_edge">Long edge…</option>
+        <option value="print">Print, long edge…</option>
+      </select>
+      <input id="file-target-value" type="number" aria-label="Long edge" hidden>
+      <span id="file-target-unit" class="muted" hidden></span>
+    </label>
+    <label class="field toggle">
+      <input id="file-face" type="checkbox">
+      <span>Face restore <em class="muted">(GFPGAN)</em></span>
+    </label>
+    <label class="field" id="file-fidelity-field" title="0% is full GFPGAN restoration; raise it if faces look changed">
+      <span class="field-label">Face fidelity</span>
+      <input id="file-fidelity" type="range" step="0.05">
+      <output id="file-fidelity-value"></output>
+    </label>
+    <label class="field" id="file-face-pass-field" title="After upscaling finds faces too small in the original; before upscaling is the classic GFPGAN order">
+      <span class="field-label">Restore faces</span>
+      <select id="file-face-pass">
+        <option value="before">before upscaling</option>
+        <option value="after">after upscaling (finds small faces)</option>
+      </select>
+    </label>
+    <label class="field">
+      <span class="field-label">Format</span>
+      <select id="file-format"></select>
+    </label>
+    <label class="field" id="file-quality-field">
+      <span class="field-label">Quality</span>
+      <input id="file-quality" type="range" step="1">
+      <output id="file-quality-value"></output>
+    </label>
+    <label class="field">
+      <span class="field-label">Model</span>
+      <select id="file-model"></select>
+    </label>
+    <label class="field" id="file-denoise-field">
+      <span class="field-label">Denoise</span>
+      <input id="file-denoise" type="range" step="0.05">
+      <output id="file-denoise-value"></output>
+    </label>
+    <div id="file-model-hint" class="muted hint"></div>
+  </div>
+  <div class="dialog-actions">
+    <button type="button" class="button subtle" id="file-settings-global">Use global settings</button>
+    <button type="button" class="button subtle" id="file-settings-cancel">Cancel</button>
+    <button type="button" class="button" id="file-settings-save">Save</button>
+  </div>
+</dialog>
+
+<template id="job-template">
+  <li class="job">
+    <img class="thumb" alt="" loading="lazy">
+    <div class="job-main">
+      <div class="job-name"></div>
+      <div class="job-meta muted"></div>
+      <div class="job-progress"><progress max="1" value="0"></progress><span class="progress-text muted"></span></div>
+      <div class="job-error" role="alert"></div>
+    </div>
+    <span class="status"></span>
+    <div class="job-actions">
+      <button type="button" class="button" data-action="start" title="Start with this file's settings">Start</button>
+      <button type="button" class="button subtle" data-action="settings" title="Give this file its own model, scale and format">Settings</button>
+      <button type="button" class="button subtle" data-action="strip" title="Upscale one small spot with every model and compare">Test strip</button>
+      <button type="button" class="button subtle" data-action="compare" title="View the result next to the original">View</button>
+      <a class="button" data-action="download">Download</a>
+      <button type="button" class="button subtle" data-action="rotate">Rotate</button>
+      <button type="button" class="button subtle" data-action="stop">Stop</button>
+      <button type="button" class="button" data-action="resume">Resume</button>
+      <button type="button" class="button subtle" data-action="rerun" title="Run the same original again with settings you choose">Re-run…</button>
+      <button type="button" class="button subtle" data-action="rename">Rename</button>
+      <button type="button" class="button subtle danger" data-action="delete" title="Delete the original and the result">Remove</button>
+    </div>
+  </li>
+</template>
+
+<template id="card-template">
+  <li class="card">
+    <button type="button" class="card-image" data-action="compare" title="View"><img alt="" loading="lazy"></button>
+    <div class="card-name"></div>
+    <div class="card-meta muted"></div>
+    <div class="card-actions">
+      <button type="button" class="button subtle" data-action="compare">View</button>
+      <button type="button" class="button subtle" data-action="strip" title="Upscale one small spot with every model and compare">Test strip</button>
+      <a class="button" data-action="download">Download</a>
+      <button type="button" class="button subtle" data-action="rotate">Rotate</button>
+      <button type="button" class="button subtle" data-action="rename">Rename</button>
+      <button type="button" class="button subtle danger" data-action="delete">Remove</button>
+    </div>
+  </li>
+</template>
+
+<div id="toast" class="toast" role="status"></div>
+<script src="app.js"></script>
+</body>
+</html>

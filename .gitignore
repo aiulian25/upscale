@@ -1,0 +1,18 @@
+# Only what the container needs to build and run is published; everything else stays local.
+/*
+!/.dockerignore
+!/.env.example
+!/.gitignore
+!/Dockerfile
+!/LICENSE
+!/README.md
+!/docker-compose.yml
+!/docs/
+!/run.sh
+!/web/
+/docs/*
+!/docs/screenshots/
+.env
+*.log
+__pycache__/
+*.py[cod]

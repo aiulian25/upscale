@@ -1,0 +1,57 @@
+# Upscale: upscales photos with Real-ESRGAN and restores faces with GFPGAN, in the browser, on this
+# server's NVIDIA GPU.
+#
+#   1. mkdir data   (next to this file, before the first start)
+#   2. docker compose up -d
+#   3. Open http://<server-ip>:47291 from any machine on your network.
+
+services:
+  upscale:
+    image: ghcr.io/aiulian25/upscale:latest
+    container_name: upscale
+    ports:
+      # There is no login: anyone who can reach this port can upload photos, and see and download
+      # every result. Use "127.0.0.1:47291:47291" to keep it on this machine only.
+      - "47291:47291"
+    # Results and everything else in ./data belong to this user and group; run `id -u` and `id -g`
+    # for yours, or set PUID and PGID in a .env file next to this one (see .env.example).
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      # Where each new browser starts, until someone saves defaults on the page: a scale from 1 to 8,
+      # face restore on (1) or off (0), and png, jpg or webp.
+      - SCALE=4
+      - FACE_ENHANCE=1
+      - OUTPUT_FORMAT=png
+      # # Download names; {scale} {model} {faces} and {date} work too.
+      # - OUTPUT_NAME_TEMPLATE={name}_upscaled
+      # # 1 starts photos copied into data/inbox by themselves, one at a time.
+      # - INBOX_AUTOSTART=0
+      # # Tile size in pixels (400 by default); halved by itself when the GPU runs out of memory.
+      # - TILE=400
+      # # Without a GPU: CPU cores kept free for the rest of the machine.
+      # - CPU_CORES_RESERVED=1
+    volumes:
+      # Originals, results, the job list, the inbox folder and extra models. Create the folder before
+      # the first start, so it belongs to PUID and PGID.
+      - ./data:/data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            # The NVIDIA GPU: the host needs its driver and the NVIDIA Container Toolkit. Without an
+            # NVIDIA GPU, delete this deploy block and the app runs on the CPU, much slower.
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # PyTorch needs shared memory for big images
+    shm_size: "8gb"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

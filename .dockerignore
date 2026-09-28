@@ -1,0 +1,7 @@
+# The build only needs what the Dockerfile copies, run.sh and web/: everything else (backup/, data/, the compose files,
+# .env, notes) stays off the builder and out of the image
+*
+!run.sh
+!web
+# Bytecode from running checks on the host; the container compiles its own
+**/__pycache__
